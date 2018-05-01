@@ -23,5 +23,5 @@ We have a separate document with [contribution guidelines](./.github/CONTRIBUTIN
 # Test change #2
 # Test change #3 (2018-04-28-2:44PM)
 # Test change #4 (2018-04-29-6:46AM)
-# Test change #5 (2018-04-29-9:42AM)
-# Test change #6 cause a conflict on purpose
+# Test change #5 (2018-04-29-09:58AM)
+# Test change #6 (2018-05-01-10:35am)
