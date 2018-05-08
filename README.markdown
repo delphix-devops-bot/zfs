@@ -26,3 +26,4 @@ We have a separate document with [contribution guidelines](./.github/CONTRIBUTIN
 # Test change #5 (2018-04-29-09:58AM)
 # Test change #6 (2018-05-01-10:35am)
 # Test change #7 (2018-05-01-13:21am)
+# Test change #8 (2018-05-08-11:57am)
