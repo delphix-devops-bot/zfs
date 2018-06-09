@@ -96,6 +96,7 @@ extern int reference_tracking_enable;
 extern int zfs_recover;
 extern uint64_t zfs_arc_max, zfs_arc_meta_limit;
 extern int zfs_vdev_async_read_max_active;
+extern boolean_t spa_load_verify_dryrun;
 
 static const char cmdname[] = "zdb";
 uint8_t dump_opt[256];
@@ -106,6 +107,7 @@ uint64_t *zopt_object = NULL;
 static unsigned zopt_objects = 0;
 libzfs_handle_t *g_zfs;
 uint64_t max_inflight = 1000;
+static int leaked_objects = 0;
 
 static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *);
 
@@ -1983,9 +1985,12 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 
 	if (dump_opt['d'] > 4) {
 		error = zfs_obj_to_path(os, object, path, sizeof (path));
-		if (error != 0) {
+		if (error == ESTALE) {
+			(void) snprintf(path, sizeof (path), "on delete queue");
+		} else if (error != 0) {
+			leaked_objects++;
 			(void) snprintf(path, sizeof (path),
-			    "\?\?\?<object#%llu>", (u_longlong_t)object);
+			    "path not found, possibly leaked");
 		}
 		(void) printf("\tpath	%s\n", path);
 	}
@@ -2376,14 +2381,19 @@ dump_dir(objset_t *os)
 	    (double)(max_slot_used - total_slots_used)*100 /
 	    (double)max_slot_used);
 
+	ASSERT3U(object_count, ==, usedobjs);
+
 	(void) printf("\n");
 
 	if (error != ESRCH) {
 		(void) fprintf(stderr, "dmu_object_next() = %d\n", error);
 		abort();
 	}
-
-	ASSERT3U(object_count, ==, usedobjs);
+	if (leaked_objects != 0) {
+		(void) printf("%d potentially leaked objects detected\n",
+		    leaked_objects);
+		leaked_objects = 0;
+	}
 }
 
 static void
@@ -4824,8 +4834,6 @@ zdb_embedded_block(char *thing)
 	char *buf;
 	int err;
 
-	buf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
-
 	bzero(&bp, sizeof (bp));
 	err = sscanf(thing, "%llx:%llx:%llx:%llx:%llx:%llx:%llx:%llx:"
 	    "%llx:%llx:%llx:%llx:%llx:%llx:%llx:%llx",
@@ -4834,17 +4842,22 @@ zdb_embedded_block(char *thing)
 	    words + 8, words + 9, words + 10, words + 11,
 	    words + 12, words + 13, words + 14, words + 15);
 	if (err != 16) {
-		(void) printf("invalid input format\n");
+		(void) fprintf(stderr, "invalid input format\n");
 		exit(1);
 	}
 	ASSERT3U(BPE_GET_LSIZE(&bp), <=, SPA_MAXBLOCKSIZE);
+	buf = malloc(SPA_MAXBLOCKSIZE);
+	if (buf == NULL) {
+		(void) fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
 	err = decode_embedded_bp(&bp, buf, BPE_GET_LSIZE(&bp));
 	if (err != 0) {
-		(void) printf("decode failed: %u\n", err);
+		(void) fprintf(stderr, "decode failed: %u\n", err);
 		exit(1);
 	}
 	zdb_dump_block_raw(buf, BPE_GET_LSIZE(&bp), 0);
-	umem_free(buf, SPA_MAXBLOCKSIZE);
+	free(buf);
 }
 
 int
@@ -4999,6 +5012,12 @@ main(int argc, char **argv)
 	 * Disable reference tracking for better performance.
 	 */
 	reference_tracking_enable = B_FALSE;
+
+	/*
+	 * Do not fail spa_load when spa_load_verify fails. This is needed
+	 * to load non-idle pools.
+	 */
+	spa_load_verify_dryrun = B_TRUE;
 
 	kernel_init(FREAD);
 	if ((g_zfs = libzfs_init()) == NULL) {
@@ -5209,5 +5228,5 @@ main(int argc, char **argv)
 	libzfs_fini(g_zfs);
 	kernel_fini();
 
-	return (0);
+	return (error);
 }

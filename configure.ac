@@ -30,8 +30,8 @@
  * CDDL HEADER END
  */
 
-AC_INIT(m4_esyscmd(grep Name META | cut -d ':' -f 2 | tr -d ' \n'),
-	m4_esyscmd(grep Version META | cut -d ':' -f 2 | tr -d ' \n'))
+AC_INIT(m4_esyscmd(grep ^Name: META | cut -d ':' -f 2 | tr -d ' \n'),
+	m4_esyscmd(grep ^Version: META | cut -d ':' -f 2 | tr -d ' \n'))
 AC_LANG(C)
 ZFS_AC_META
 AC_CONFIG_AUX_DIR([config])
@@ -57,6 +57,8 @@ ZFS_AC_PACKAGE
 ZFS_AC_CONFIG
 ZFS_AC_DEBUG
 ZFS_AC_DEBUGINFO
+ZFS_AC_DEBUG_KMEM
+ZFS_AC_DEBUG_KMEM_TRACKING
 
 AC_CONFIG_FILES([
 	Makefile
@@ -126,6 +128,7 @@ AC_CONFIG_FILES([
 	contrib/initramfs/hooks/Makefile
 	contrib/initramfs/scripts/Makefile
 	contrib/initramfs/scripts/local-top/Makefile
+	contrib/pyzfs/Makefile
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
@@ -134,8 +137,12 @@ AC_CONFIG_FILES([
 	module/zfs/Makefile
 	module/lua/Makefile
 	module/icp/Makefile
+	module/spl/Makefile
 	include/Makefile
 	include/linux/Makefile
+	include/spl/Makefile
+	include/spl/rpc/Makefile
+	include/spl/sys/Makefile
 	include/sys/Makefile
 	include/sys/fs/Makefile
 	include/sys/fm/Makefile
@@ -288,6 +295,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/poolversion/Makefile
 	tests/zfs-tests/tests/functional/privilege/Makefile
 	tests/zfs-tests/tests/functional/projectquota/Makefile
+	tests/zfs-tests/tests/functional/pyzfs/Makefile
 	tests/zfs-tests/tests/functional/quota/Makefile
 	tests/zfs-tests/tests/functional/raidz/Makefile
 	tests/zfs-tests/tests/functional/redundancy/Makefile

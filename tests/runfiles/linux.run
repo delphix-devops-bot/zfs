@@ -150,7 +150,7 @@ tags = ['functional', 'cli_root', 'zfs_destroy']
 
 [tests/functional/cli_root/zfs_diff]
 tests = ['zfs_diff_changes', 'zfs_diff_cliargs', 'zfs_diff_timestamp',
-    'zfs_diff_types']
+    'zfs_diff_types', 'zfs_diff_encrypted']
 tags = ['functional', 'cli_root', 'zfs_diff']
 
 [tests/functional/cli_root/zfs_get]
@@ -317,7 +317,7 @@ tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
     'zpool_create_features_003_pos', 'zpool_create_features_004_neg',
     'zpool_create_features_005_pos',
-    'create-o_ashift']
+    'create-o_ashift', 'zpool_create_tempname']
 tags = ['functional', 'cli_root', 'zpool_create']
 
 [tests/functional/cli_root/zpool_destroy]
@@ -364,11 +364,22 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_012_pos', 'zpool_import_013_neg', 'zpool_import_014_pos',
     'zpool_import_015_pos',
     'zpool_import_features_001_pos', 'zpool_import_features_002_neg',
-    'zpool_import_features_003_pos','zpool_import_missing_001_pos',
+    'zpool_import_features_003_pos', 'zpool_import_missing_001_pos',
     'zpool_import_missing_002_pos',
     'zpool_import_rename_001_pos', 'zpool_import_all_001_pos',
     'zpool_import_encrypted', 'zpool_import_encrypted_load',
-    'zpool_import_errata3']
+    'zpool_import_errata3',
+    'import_cache_device_added',
+    'import_cache_device_removed',
+    'import_cache_device_replaced',
+    'import_cache_mirror_attached',
+    'import_cache_mirror_detached',
+    'import_cache_shared_device',
+    'import_devices_missing',
+    'import_paths_changed',
+    'import_rewind_config_changed',
+    'import_rewind_device_replaced']
+
 tags = ['functional', 'cli_root', 'zpool_import']
 
 [tests/functional/cli_root/zpool_labelclear]
@@ -518,7 +529,7 @@ tags = ['functional', 'exec']
 [tests/functional/fault]
 tests = ['auto_online_001_pos', 'auto_replace_001_pos', 'auto_spare_001_pos',
     'auto_spare_002_pos', 'auto_spare_ashift', 'auto_spare_multiple',
-    'scrub_after_resilver']
+    'scrub_after_resilver', 'decrypt_fault']
 tags = ['functional', 'fault']
 
 [tests/functional/features/async_destroy]
@@ -600,7 +611,7 @@ tests = ['umount_001', 'umountall_001']
 tags = ['functional', 'mount']
 
 [tests/functional/mv_files]
-tests = ['mv_files_001_pos', 'mv_files_002_pos']
+tests = ['mv_files_001_pos', 'mv_files_002_pos', 'random_creation']
 tags = ['functional', 'mv_files']
 
 [tests/functional/nestedfs]
@@ -645,6 +656,12 @@ tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
     'projectspace_004_pos',
     'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg' ]
 tags = ['functional', 'projectquota']
+
+[tests/functional/pyzfs]
+tests = ['pyzfs_unittest']
+pre =
+post =
+tags = ['functional', 'pyzfs']
 
 [tests/functional/quota]
 tests = ['quota_001_pos', 'quota_002_pos', 'quota_003_pos',

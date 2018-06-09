@@ -1223,7 +1223,7 @@ dmu_objset_create(const char *name, dmu_objset_type_t type, uint64_t flags,
 	 * allocated. Rather than adding NULL checks throughout this code
 	 * or adding dummy dcp's to all of the callers we simply create a
 	 * dummy one here and use that. This zero dcp will have the same
-	 * effect as asking for inheritence of all encryption params.
+	 * effect as asking for inheritance of all encryption params.
 	 */
 	doca.doca_dcp = (dcp != NULL) ? dcp : &tmp_dcp;
 
@@ -2950,7 +2950,7 @@ dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
 	}
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_objset_zil);
 EXPORT_SYMBOL(dmu_objset_pool);
 EXPORT_SYMBOL(dmu_objset_ds);

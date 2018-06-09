@@ -1555,7 +1555,7 @@ metaslab_set_fragmentation(metaslab_t *msp)
 		if (spa_writeable(spa) && txg < spa_final_dirty_txg(spa)) {
 			msp->ms_condense_wanted = B_TRUE;
 			vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
-			spa_dbgmsg(spa, "txg %llu, requesting force condense: "
+			zfs_dbgmsg("txg %llu, requesting force condense: "
 			    "ms_id %llu, vdev_id %llu", txg, msp->ms_id,
 			    vd->vdev_id);
 		}
@@ -2072,16 +2072,15 @@ metaslab_should_condense(metaslab_t *msp)
 static void
 metaslab_condense(metaslab_t *msp, uint64_t txg, dmu_tx_t *tx)
 {
-	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
 	range_tree_t *condense_tree;
 	space_map_t *sm = msp->ms_sm;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
-	ASSERT3U(spa_sync_pass(spa), ==, 1);
+	ASSERT3U(spa_sync_pass(msp->ms_group->mg_vd->vdev_spa), ==, 1);
 	ASSERT(msp->ms_loaded);
 
 
-	spa_dbgmsg(spa, "condensing: txg %llu, msp[%llu] %p, vdev id %llu, "
+	zfs_dbgmsg("condensing: txg %llu, msp[%llu] %p, vdev id %llu, "
 	    "spa %s, smp size %llu, segments %lu, forcing condense=%s", txg,
 	    msp->ms_id, msp, msp->ms_group->mg_vd->vdev_id,
 	    msp->ms_group->mg_vd->vdev_spa->spa_name,
@@ -3851,7 +3850,7 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* CSTYLED */
 module_param(metaslab_aliquot, ulong, 0644);
 MODULE_PARM_DESC(metaslab_aliquot,
@@ -3905,4 +3904,4 @@ MODULE_PARM_DESC(zfs_metaslab_switch_threshold,
 module_param(metaslab_force_ganging, ulong, 0644);
 MODULE_PARM_DESC(metaslab_force_ganging,
 	"blocks larger than this size are forced to be gang blocks");
-#endif /* _KERNEL && HAVE_SPL */
+#endif

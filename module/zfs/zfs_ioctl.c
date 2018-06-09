@@ -144,12 +144,8 @@
 #include <sys/param.h>
 #include <sys/errno.h>
 #include <sys/uio.h>
-#include <sys/buf.h>
-#include <sys/modctl.h>
-#include <sys/open.h>
 #include <sys/file.h>
 #include <sys/kmem.h>
-#include <sys/conf.h>
 #include <sys/cmn_err.h>
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
@@ -160,7 +156,6 @@
 #include <sys/spa_impl.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
-#include <sys/priv_impl.h>
 #include <sys/dmu.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_dataset.h>
@@ -169,14 +164,11 @@
 #include <sys/dmu_objset.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
-#include <sys/ddi.h>
 #include <sys/sunddi.h>
-#include <sys/sunldi.h>
 #include <sys/policy.h>
 #include <sys/zone.h>
 #include <sys/nvpair.h>
 #include <sys/pathname.h>
-#include <sys/mount.h>
 #include <sys/sdt.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_ctldir.h>
@@ -184,7 +176,6 @@
 #include <sys/zfs_onexit.h>
 #include <sys/zvol.h>
 #include <sys/dsl_scan.h>
-#include <sharefs/share.h>
 #include <sys/fm/util.h>
 #include <sys/dsl_crypt.h>
 
@@ -1519,6 +1510,7 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	nvlist_t *rootprops = NULL;
 	nvlist_t *zplprops = NULL;
 	dsl_crypto_params_t *dcp = NULL;
+	char *spa_name = zc->zc_name;
 
 	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
 	    zc->zc_iflags, &config)))
@@ -1535,6 +1527,7 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 		nvlist_t *nvl = NULL;
 		nvlist_t *hidden_args = NULL;
 		uint64_t version = SPA_VERSION;
+		char *tname;
 
 		(void) nvlist_lookup_uint64(props,
 		    zpool_prop_to_name(ZPOOL_PROP_VERSION), &version);
@@ -1569,6 +1562,10 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 		    zplprops, NULL);
 		if (error != 0)
 			goto pool_props_bad;
+
+		if (nvlist_lookup_string(props,
+		    zpool_prop_to_name(ZPOOL_PROP_TNAME), &tname) == 0)
+			spa_name = tname;
 	}
 
 	error = spa_create(zc->zc_name, config, props, zplprops, dcp);
@@ -1576,9 +1573,9 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	/*
 	 * Set the remaining root properties
 	 */
-	if (!error && (error = zfs_set_prop_nvlist(zc->zc_name,
+	if (!error && (error = zfs_set_prop_nvlist(spa_name,
 	    ZPROP_SRC_LOCAL, rootprops, NULL)) != 0)
-		(void) spa_destroy(zc->zc_name);
+		(void) spa_destroy(spa_name);
 
 pool_props_bad:
 	nvlist_free(rootprops);
@@ -7109,7 +7106,7 @@ _fini(void)
 	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
 }
 
-#ifdef HAVE_SPL
+#if defined(_KERNEL)
 module_init(_init);
 module_exit(_fini);
 
@@ -7117,4 +7114,4 @@ MODULE_DESCRIPTION("ZFS");
 MODULE_AUTHOR(ZFS_META_AUTHOR);
 MODULE_LICENSE(ZFS_META_LICENSE);
 MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
-#endif /* HAVE_SPL */
+#endif

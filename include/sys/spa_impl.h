@@ -184,6 +184,15 @@ typedef enum spa_all_vdev_zap_action {
 	AVZ_ACTION_INITIALIZE
 } spa_avz_action_t;
 
+typedef enum spa_config_source {
+	SPA_CONFIG_SRC_NONE = 0,
+	SPA_CONFIG_SRC_SCAN,		/* scan of path (default: /dev/dsk) */
+	SPA_CONFIG_SRC_CACHEFILE,	/* any cachefile */
+	SPA_CONFIG_SRC_TRYIMPORT,	/* returned from call to tryimport */
+	SPA_CONFIG_SRC_SPLIT,		/* new pool in a pool split */
+	SPA_CONFIG_SRC_MOS		/* MOS, but not always from right txg */
+} spa_config_source_t;
+
 struct spa {
 	/*
 	 * Fields protected by spa_namespace_lock.
@@ -202,6 +211,8 @@ struct spa {
 	uint8_t		spa_sync_on;		/* sync threads are running */
 	spa_load_state_t spa_load_state;	/* current load operation */
 	boolean_t	spa_indirect_vdevs_loaded; /* mappings loaded? */
+	boolean_t	spa_trust_config;	/* do we trust vdev tree? */
+	spa_config_source_t spa_config_source;	/* where config comes from? */
 	uint64_t	spa_import_flags;	/* import specific flags */
 	spa_taskqs_t	spa_zio_taskq[ZIO_TYPES][ZIO_TASKQ_TYPES];
 	dsl_pool_t	*spa_dsl_pool;
@@ -263,6 +274,8 @@ struct spa {
 	int		spa_async_suspended;	/* async tasks suspended */
 	kcondvar_t	spa_async_cv;		/* wait for thread_exit() */
 	uint16_t	spa_async_tasks;	/* async task mask */
+	uint64_t	spa_missing_tvds;	/* unopenable tvds on load */
+	uint64_t	spa_missing_tvds_allowed; /* allow loading spa? */
 
 	spa_removing_phys_t spa_removing_phys;
 	spa_vdev_removal_t *spa_vdev_removal;
@@ -306,7 +319,6 @@ struct spa {
 	kcondvar_t	spa_suspend_cv;		/* notification of resume */
 	zio_suspend_reason_t	spa_suspended;	/* pool is suspended */
 	uint8_t		spa_claiming;		/* pool is doing zil_claim() */
-	boolean_t	spa_debug;		/* debug enabled? */
 	boolean_t	spa_is_root;		/* pool is root */
 	int		spa_minref;		/* num refs when first opened */
 	int		spa_mode;		/* FREAD | FWRITE */

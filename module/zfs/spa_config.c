@@ -393,7 +393,8 @@ void
 spa_config_set(spa_t *spa, nvlist_t *config)
 {
 	mutex_enter(&spa->spa_props_lock);
-	nvlist_free(spa->spa_config);
+	if (spa->spa_config != NULL && spa->spa_config != config)
+		nvlist_free(spa->spa_config);
 	spa->spa_config = config;
 	mutex_exit(&spa->spa_props_lock);
 }
@@ -599,7 +600,7 @@ spa_config_update(spa_t *spa, int what)
 		spa_config_update(spa, SPA_CONFIG_UPDATE_VDEVS);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(spa_config_load);
 EXPORT_SYMBOL(spa_all_configs);
 EXPORT_SYMBOL(spa_config_set);

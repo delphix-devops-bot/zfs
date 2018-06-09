@@ -33,11 +33,8 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
-#include <sys/systm.h>
 #include <sys/sysmacros.h>
-#include <sys/resource.h>
 #include <sys/vfs.h>
-#include <sys/vfs_opreg.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/kmem.h>
@@ -45,11 +42,9 @@
 #include <sys/uio.h>
 #include <sys/vmsystm.h>
 #include <sys/atomic.h>
-#include <vm/pvn.h>
 #include <sys/pathname.h>
 #include <sys/cmn_err.h>
 #include <sys/errno.h>
-#include <sys/unistd.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
@@ -61,22 +56,16 @@
 #include <sys/dbuf.h>
 #include <sys/zap.h>
 #include <sys/sa.h>
-#include <sys/dirent.h>
 #include <sys/policy.h>
 #include <sys/sunddi.h>
 #include <sys/sid.h>
 #include <sys/mode.h>
-#include "fs/fs_subr.h"
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_vnops.h>
-#include <sys/dnlc.h>
 #include <sys/zfs_rlock.h>
-#include <sys/extdirent.h>
-#include <sys/kidmap.h>
 #include <sys/cred.h>
-#include <sys/attr.h>
 #include <sys/zpl.h>
 #include <sys/zil.h>
 #include <sys/sa_impl.h>
@@ -2273,7 +2262,7 @@ out:
  */
 /* ARGSUSED */
 int
-zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
+zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 {
 	znode_t		*zp = ITOZ(ip);
 	zfsvfs_t	*zfsvfs = ITOZSB(ip);
@@ -2378,7 +2367,7 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 			type = ZFS_DIRENT_TYPE(zap.za_first_integer);
 		}
 
-		done = !dir_emit(ctx, zap.za_name, strlen(zap.za_name),
+		done = !zpl_dir_emit(ctx, zap.za_name, strlen(zap.za_name),
 		    objnum, type);
 		if (done)
 			break;
@@ -5234,7 +5223,7 @@ zfs_retzcbuf(struct inode *ip, xuio_t *xuio, cred_t *cr)
 }
 #endif /* HAVE_UIO_ZEROCOPY */
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_open);
 EXPORT_SYMBOL(zfs_close);
 EXPORT_SYMBOL(zfs_read);

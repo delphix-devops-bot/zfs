@@ -449,6 +449,10 @@ zio_decrypt(zio_t *zio, abd_t *data, uint64_t size)
 		}
 		abd_copy(data, zio->io_abd, size);
 
+		if (zio_injection_enabled && ot != DMU_OT_DNODE && ret == 0) {
+			ret = zio_handle_decrypt_injection(spa,
+			    &zio->io_bookmark, ot, ECKSUM);
+		}
 		if (ret != 0)
 			goto error;
 
@@ -468,6 +472,10 @@ zio_decrypt(zio_t *zio, abd_t *data, uint64_t size)
 			zio_crypt_decode_mac_bp(bp, mac);
 			ret = spa_do_crypt_mac_abd(B_FALSE, spa, dsobj,
 			    zio->io_abd, size, mac);
+			if (zio_injection_enabled && ret == 0) {
+				ret = zio_handle_decrypt_injection(spa,
+				    &zio->io_bookmark, ot, ECKSUM);
+			}
 		}
 		abd_copy(data, zio->io_abd, size);
 
@@ -487,8 +495,9 @@ zio_decrypt(zio_t *zio, abd_t *data, uint64_t size)
 		zio_crypt_decode_mac_bp(bp, mac);
 	}
 
-	ret = spa_do_crypt_abd(B_FALSE, spa, dsobj, bp, bp->blk_birth,
-	    size, data, zio->io_abd, iv, mac, salt, &no_crypt);
+	ret = spa_do_crypt_abd(B_FALSE, spa, &zio->io_bookmark, BP_GET_TYPE(bp),
+	    BP_GET_DEDUP(bp), BP_SHOULD_BYTESWAP(bp), salt, iv, mac, size, data,
+	    zio->io_abd, &no_crypt);
 	if (no_crypt)
 		abd_copy(data, zio->io_abd, size);
 
@@ -499,7 +508,7 @@ zio_decrypt(zio_t *zio, abd_t *data, uint64_t size)
 
 error:
 	/* assert that the key was found unless this was speculative */
-	ASSERT(ret != ENOENT || (zio->io_flags & ZIO_FLAG_SPECULATIVE));
+	ASSERT(ret != EACCES || (zio->io_flags & ZIO_FLAG_SPECULATIVE));
 
 	/*
 	 * If there was a decryption / authentication error return EIO as
@@ -508,6 +517,7 @@ error:
 	if (ret == ECKSUM) {
 		zio->io_error = SET_ERROR(EIO);
 		if ((zio->io_flags & ZIO_FLAG_SPECULATIVE) == 0) {
+			spa_log_error(spa, &zio->io_bookmark);
 			zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
 			    spa, NULL, &zio->io_bookmark, zio, 0, 0);
 		}
@@ -869,6 +879,13 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 	}
 
 	/*
+	 * Do not verify individual DVAs if the config is not trusted. This
+	 * will be done once the zio is executed in vdev_mirror_map_alloc.
+	 */
+	if (!spa->spa_trust_config)
+		return;
+
+	/*
 	 * Pool-specific checks.
 	 *
 	 * Note: it would be nice to verify that the blk_birth and
@@ -916,6 +933,36 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 			    bp, i, (longlong_t)offset);
 		}
 	}
+}
+
+boolean_t
+zfs_dva_valid(spa_t *spa, const dva_t *dva, const blkptr_t *bp)
+{
+	uint64_t vdevid = DVA_GET_VDEV(dva);
+
+	if (vdevid >= spa->spa_root_vdev->vdev_children)
+		return (B_FALSE);
+
+	vdev_t *vd = spa->spa_root_vdev->vdev_child[vdevid];
+	if (vd == NULL)
+		return (B_FALSE);
+
+	if (vd->vdev_ops == &vdev_hole_ops)
+		return (B_FALSE);
+
+	if (vd->vdev_ops == &vdev_missing_ops) {
+		return (B_FALSE);
+	}
+
+	uint64_t offset = DVA_GET_OFFSET(dva);
+	uint64_t asize = DVA_GET_ASIZE(dva);
+
+	if (BP_IS_GANG(bp))
+		asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+	if (offset + asize > vd->vdev_asize)
+		return (B_FALSE);
+
+	return (B_TRUE);
 }
 
 zio_t *
@@ -3295,7 +3342,7 @@ zio_dva_allocate(zio_t *zio)
 	    &zio->io_alloc_list, zio);
 
 	if (error != 0) {
-		spa_dbgmsg(spa, "%s: metaslab allocation failure: zio %p, "
+		zfs_dbgmsg("%s: metaslab allocation failure: zio %p, "
 		    "size %llu, error %d", spa_name(spa), zio, zio->io_size,
 		    error);
 		if (error == ENOSPC && zio->io_size > SPA_MINBLOCKSIZE)
@@ -3463,14 +3510,18 @@ zio_vdev_io_start(zio_t *zio)
 	}
 
 	ASSERT3P(zio->io_logical, !=, zio);
-	if (zio->io_type == ZIO_TYPE_WRITE && zio->io_vd->vdev_removing) {
+	if (zio->io_type == ZIO_TYPE_WRITE) {
+		ASSERT(spa->spa_trust_config);
+
 		/*
 		 * Note: the code can handle other kinds of writes,
 		 * but we don't expect them.
 		 */
-		ASSERT(zio->io_flags &
-		    (ZIO_FLAG_PHYSICAL | ZIO_FLAG_SELF_HEAL |
-		    ZIO_FLAG_RESILVER | ZIO_FLAG_INDUCE_DAMAGE));
+		if (zio->io_vd->vdev_removing) {
+			ASSERT(zio->io_flags &
+			    (ZIO_FLAG_PHYSICAL | ZIO_FLAG_SELF_HEAL |
+			    ZIO_FLAG_RESILVER | ZIO_FLAG_INDUCE_DAMAGE));
+		}
 	}
 
 	align = 1ULL << vd->vdev_top->vdev_ashift;
@@ -3906,8 +3957,9 @@ zio_encrypt(zio_t *zio)
 	}
 
 	/* Perform the encryption. This should not fail */
-	VERIFY0(spa_do_crypt_abd(B_TRUE, spa, dsobj, bp, zio->io_txg,
-	    psize, zio->io_abd, eabd, iv, mac, salt, &no_crypt));
+	VERIFY0(spa_do_crypt_abd(B_TRUE, spa, &zio->io_bookmark,
+	    BP_GET_TYPE(bp), BP_GET_DEDUP(bp), BP_SHOULD_BYTESWAP(bp),
+	    salt, iv, mac, psize, zio->io_abd, eabd, &no_crypt));
 
 	/* encode encryption metadata into the bp */
 	if (ot == DMU_OT_INTENT_LOG) {
@@ -4660,7 +4712,7 @@ zbookmark_subtree_completed(const dnode_phys_t *dnp,
 	    last_block) <= 0);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zio_type_name);
 EXPORT_SYMBOL(zio_buf_alloc);
 EXPORT_SYMBOL(zio_data_buf_alloc);
